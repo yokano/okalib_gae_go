@@ -113,3 +113,76 @@ func join(str ...string) string {
 	}
 	return result
 }
+
+/**
+ * リクエストボディ用のリーダー
+ * request() で body を送信するために使う
+ * @class
+ * @member {[]byte} body 本文
+ * @member {int} pointer 何バイト目まで読み込んだか表すポインタ
+ */
+type Reader struct {
+	io.Reader
+	body []byte
+	pointer int
+}
+
+/**
+ * Reader のインスタンスを作成する
+ * @param {string} body 本文
+ * @returns {*Reader} 作成したインスタンス
+ */
+func NewReader(body string) *Reader {
+	reader := new(Reader)
+	reader.body = []byte(body)
+	reader.pointer = 0
+	return reader
+}
+
+/**
+ * HTTP リクエストを送信してレスポンスを返す
+ * @function
+ * @param {appengine.Context} c コンテキスト
+ * @param {string} method POST または GET
+ * @param {string} targetUrl 送信先のURL
+ * @param {map[string]string} params パラーメタリスト 指定しない場合は nil または空マップ
+ * @param {string} body リクエストボディ GET の場合は無視される
+ * @param {*http.Response} レスポンス
+ */
+func request(c appengine.Context, method string, targetUrl string, params map[string]string, body string) *http.Response {
+	var request *http.Request
+	var err error
+	
+	if method != "GET" && method != "POST" {
+		log.Printf("request(): method must set GET or POST only.")
+		return nil
+	}
+	
+	if method == "GET" || body == "" {
+		request, err = http.NewRequest(method, targetUrl, nil)
+	} else {
+		request, err = http.NewRequest(method, targetUrl, NewReader(body))
+	}
+	check(c, err)
+	
+	if params != nil || len(params) > 0 {
+		if method == "GET" {
+			paramString := ""
+			for key, value := range params {
+				param := strings.Join([]string{key, value}, "=")
+				paramString = strings.Join([]string{paramString, param}, "&")
+			}
+			targetUrl = strings.Join([]string{targetUrl, paramString}, "?")
+		} else if method == "POST" {
+			for key, value := range params {
+				request.Header.Add(key, value)
+			}
+		}
+	}
+	
+	client := urlfetch.Client(c)
+	response, err := client.Do(request)
+	check(c, err)
+	
+	return response
+}
