@@ -5,7 +5,7 @@
  *
  * package名を自分のアプリ名に合わせて設定してから使用すること
  */
-package escape3ds
+package ******
 import (
 	"appengine"
 	"appengine/urlfetch"
