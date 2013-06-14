@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"log"
+	"io"
 )
 
 /**
@@ -153,33 +154,44 @@ func request(c appengine.Context, method string, targetUrl string, params map[st
 	var request *http.Request
 	var err error
 	
+	// methodのチェック
 	if method != "GET" && method != "POST" {
 		log.Printf("request(): method must set GET or POST only.")
 		return nil
 	}
 	
+	// GET なら URL にクエリ埋め込み
+	if method == "GET" && (params != nil || len(params) > 0) {
+		paramStrings := make([]string, 0)
+		for key, value := range params {
+			param := strings.Join([]string{key, value}, "=")
+			paramStrings = append(paramStrings, param)
+		}
+		paramString := ""
+		if len(params) == 1 {
+			paramString = paramStrings[0]
+		} else {
+			paramString = strings.Join(paramStrings, "&")
+		}
+		targetUrl = strings.Join([]string{targetUrl, paramString}, "?")
+	}
+	
+	// リクエスト作成
 	if method == "GET" || body == "" {
 		request, err = http.NewRequest(method, targetUrl, nil)
 	} else {
 		request, err = http.NewRequest(method, targetUrl, NewReader(body))
 	}
 	check(c, err)
-	
-	if params != nil || len(params) > 0 {
-		if method == "GET" {
-			paramString := ""
-			for key, value := range params {
-				param := strings.Join([]string{key, value}, "=")
-				paramString = strings.Join([]string{paramString, param}, "&")
-			}
-			targetUrl = strings.Join([]string{targetUrl, paramString}, "?")
-		} else if method == "POST" {
-			for key, value := range params {
-				request.Header.Add(key, value)
-			}
+
+	// POST なら Header にパラメータ設定
+	if method == "POST" && (params != nil || len(params) > 0) {
+		for key, value := range params {
+			request.Header.Add(key, value)
 		}
 	}
 	
+	// 送受信
 	client := urlfetch.Client(c)
 	response, err := client.Do(request)
 	check(c, err)
