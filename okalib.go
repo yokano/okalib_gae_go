@@ -5,7 +5,7 @@
  *
  * package名を自分のアプリ名に合わせて設定してから使用すること
  */
-package ******
+package escape3ds
 import (
 	"appengine"
 	"appengine/urlfetch"
@@ -13,6 +13,9 @@ import (
 	"strings"
 	"log"
 	"io"
+	"math/rand"
+	"encoding/binary"
+	"encoding/base64"
 )
 
 /**
@@ -51,6 +54,28 @@ func removeItem(s []string, target string) []string {
 		}
 	}
 	
+	return result
+}
+
+/**
+ * 文字列配列の中に指定された文字列が存在するかどうか調べる
+ * @function
+ * @param {[]string} arr 文字列配列
+ * @param {string} target 探す文字列
+ * @returns {bool} 存在したらtrue,　それ以外はfalse
+ */
+func exist(arr []string, target string) bool {
+	var i int
+	for i = 0; i < len(arr); i++ {
+		if arr[i] == target {
+			break
+		}
+	}
+	
+	result := false
+	if i < len(arr) {
+		return true
+	}
 	return result
 }
 
@@ -197,4 +222,21 @@ func request(c appengine.Context, method string, targetUrl string, params map[st
 	check(c, err)
 	
 	return response
+}
+
+/**
+ * ランダムな文字列を取得する
+ * 64bit のランダムデータを Base64 エンコードして記号を抜いたもの
+ * @function
+ * @returns {string} ランダムな文字列
+ */
+func getRandomizedString() string {
+	r := rand.Int63()
+	b := make([]byte, binary.MaxVarintLen64)
+	binary.PutVarint(b, int64(r))
+	e := base64.StdEncoding.EncodeToString(b)
+	e = strings.Replace(e, "+", "", -1)
+	e = strings.Replace(e, "/", "", -1)
+	e = strings.Replace(e, "=", "", -1)
+	return e
 }
