@@ -1,14 +1,14 @@
 /**
  * Google App Engine + Go 言語用の汎用ライブラリ
+ * package名を自分のアプリ名に合わせて設定してから使用すること
  * @author y.okano
  * @file
- *
- * package名を自分のアプリ名に合わせて設定してから使用すること
  */
-package escape3ds
+package xxxxxx
 import (
 	"appengine"
 	"appengine/urlfetch"
+	"appengine/mail"
 	"net/http"
 	"strings"
 	"log"
@@ -16,6 +16,9 @@ import (
 	"math/rand"
 	"encoding/binary"
 	"encoding/base64"
+	"crypto/sha1"
+	"time"
+	"fmt"
 )
 
 /**
@@ -165,6 +168,36 @@ func NewReader(body string) *Reader {
 	return reader
 }
 
+
+/**
+ * 本文を読み出す
+ * ２回目以降は前回の続きから読み出せる
+ * @method
+ * @memberof *Reader
+ * @param {[]byte} p 読みだしたデータの保存先
+ * @returns {int} 読みだしたバイト数
+ * @returns {error} エラー
+ */
+func (this *Reader) Read(p []byte) (int, error) {
+	var l int
+	var err error
+	if this.pointer + len(p) < len(this.body) {
+		l = len(p)
+		err = nil
+	} else {
+		l = len(this.body) - this.pointer
+		err = io.EOF
+	}
+	
+	for i := 0; i < l; i++ {
+		p[i] = this.body[i + this.pointer]
+	}
+	
+	this.pointer = l + this.pointer
+	
+	return l, err
+}
+
 /**
  * HTTP リクエストを送信してレスポンスを返す
  * @function
@@ -239,4 +272,66 @@ func getRandomizedString() string {
 	e = strings.Replace(e, "/", "", -1)
 	e = strings.Replace(e, "=", "", -1)
 	return e
+}
+
+/**
+ * SHA-1で暗号化した文字列を返す
+ * @function
+ * @param {string} 暗号化する文字列
+ * @returns {[]byte} 暗号化されたバイト列
+ */
+func SHA1(input string) []byte {
+	hash := sha1.New()
+	hash.Write([]byte(input))
+	return hash.Sum(nil)
+}
+
+/**
+ * メールの送信
+ * @function
+ * @param {appengine.Context} c コンテキスト
+ * @param {string} sender 送信元アドレス
+ * @param {string} to 送信先アドレス
+ * @param {string} subject タイトル
+ * @param {string} body メッセージ
+ */
+func sendMail(c appengine.Context, sender string, to string, subject string, body string) {
+	message := new(mail.Message)
+	message.Sender = sender
+	message.To = []string{to}
+	message.Subject = subject
+	message.Body = body
+	
+	err := mail.Send(c, message)
+	check(c, err)
+}
+
+/**
+ * クッキーを作成する
+ * @function
+ * @param {string} name クッキーの名前
+ * @param {string} value クッキーの値
+ * @param {string} domain 有効ドメイン
+ * @param {string} path 有効ディレクトリ
+ * @param {int} hour 有効期限（時間）
+ */
+func NewCookie(name string, value string, domain string, path string, hour int) *http.Cookie {
+	duration := time.Hour * time.Duration(hour)
+	now := time.Now()
+	expire := now.Add(duration)
+	
+	cookie := new(http.Cookie)
+	cookie.Name = name
+	cookie.Value = value
+	cookie.Domain = domain
+	cookie.Path = path
+	cookie.Expires = expire
+	cookie.RawExpires = expire.Format(time.UnixDate)
+	cookie.MaxAge = 60 * 60 * hour
+	cookie.Secure = false
+	cookie.HttpOnly = true
+	cookie.Raw = fmt.Sprintf("%s=%s", cookie.Name, cookie.Value)
+	cookie.Unparsed = []string{cookie.Raw}
+	
+	return cookie
 }
